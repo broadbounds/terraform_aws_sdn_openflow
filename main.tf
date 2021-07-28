@@ -407,3 +407,12 @@ resource "aws_instance" "control_plane" {
   }
 }
 
+
+# We save our resources ip addresses in our inventory.ini file.
+resource "local_file" "ip_addresses" {
+  content = <<EOF
+  [Control_Plane_Server]
+  ${aws_eip.bastion_elastic_ip.public_ip}
+  EOF
+  filename = "${var.key_path}${var.inventory_file}"
+}
