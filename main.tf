@@ -395,13 +395,15 @@ resource "aws_instance" "control_plane" {
 # We save our resources ip addresses in our inventory.ini file.
 resource "local_file" "ip_addresses" {
   content = <<EOF
-  [Control_Plane]
+  [Control_Plane_IP]
   ${aws_instance.control_plane.private_ip}
-  [Switches]
+  [Switch1_IP]
   ${aws_instance.switch_1.private_ip}
+  [Switch2_IP]
   ${aws_instance.switch_2.private_ip}
-  [Hosts]
+  [Host1_IP]
   ${aws_instance.host_1.private_ip}
+  [Host2_IP]
   ${aws_instance.host_2.private_ip}
   EOF
   filename = "${var.key_path}${var.inventory_file}"
