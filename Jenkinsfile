@@ -8,7 +8,11 @@ pipeline {
     TF_IN_AUTOMATION = "true"
     PATH = "$TF_HOME:$PATH"
     ACCESS_KEY = credentials('AWS_ACCESS_KEY_ID')
-    SECRET_KEY = credentials('AWS_SECRET_ACCESS_KEY') 
+    SECRET_KEY = credentials('AWS_SECRET_ACCESS_KEY')
+    cloudmapper_access_key = credentials('cloudmapper_access_key')
+    cloudmapper_secret_key = credentials('cloudmapper_secret_key')
+    aws_account_name = credentials('aws_account_name')
+    aws_account_id = credentials('aws_account_id')    
   }
   stages {
     stage('TerraformInit'){
@@ -54,6 +58,9 @@ pipeline {
             script{                    
                 unstash "terraform-plan"
                 sh "terraform apply terraform.tfplan"
+                sh "cat /var/lib/jenkins/.ssh/inventory.ini"
+                sh "chmod 600 /var/lib/jenkins/.ssh/ssh_private_key.pem"
+                sh "ansible-playbook -i /var/lib/jenkins/.ssh/inventory.ini playbook.yml --user ec2-user --key-file /var/lib/jenkins/.ssh/ssh_private_key.pem"
             }
         }
     }
