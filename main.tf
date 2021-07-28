@@ -7,7 +7,7 @@ provider "aws" {
 
 # We create a new VPC
 resource "aws_vpc" "vpc" {
-   cidr_block = "192.168.0.0/16"
+   cidr_block = var.vpc_cidr
    instance_tenancy = "default"
    tags = {
       Name = "VPC"
@@ -22,10 +22,10 @@ resource "aws_subnet" "public_subnet" {
       aws_vpc.vpc,
    ]
    vpc_id = aws_vpc.vpc.id
-   cidr_block = "192.168.0.0/24"
-   availability_zone_id = "use2-az1"
+   cidr_block = var.public_subnet_1_CIDR
+   availability_zone_id = var.AZ_1
    tags = {
-      Name = "public-subnet"
+      Name = "public-subnet-1"
    }
    map_public_ip_on_launch = true
 }
@@ -37,10 +37,10 @@ resource "aws_subnet" "private_subnet" {
       aws_vpc.vpc,
    ]
    vpc_id = aws_vpc.vpc.id
-   cidr_block = "192.168.1.0/24"
-   availability_zone_id = "use2-az1"
+   cidr_block = var.private_subnet_1_CIDR
+   availability_zone_id = var.AZ_1
    tags = {
-      Name = "private-subnet"
+      Name = "private-subnet-1"
    }
 }
 
@@ -208,8 +208,8 @@ resource "aws_instance" "bastion_host" {
    depends_on = [
       aws_security_group.sg_bastion_host,
    ]
-   ami = "ami-077e31c4939f6a2f3"
-   instance_type = "t2.micro"
+   ami = var.ec2_ami
+   instance_type = var.ec2_type
    key_name = aws_key_pair.public_ssh_key.key_name
    vpc_security_group_ids = [aws_security_group.sg_bastion_host.id]
    subnet_id = aws_subnet.public_subnet.id
@@ -246,3 +246,164 @@ resource "local_file" "ip_addresses" {
             EOF
   filename = "${var.key_path}ip_addresses.txt"
 }
+
+
+# We create a security group for our switch instances
+resource "aws_security_group" "sg_switch" {
+  depends_on = [
+    aws_vpc.vpc,
+  ]
+  name        = "sg switch"
+  description = "Allow switch inbound traffic"
+  vpc_id      = aws_vpc.vpc.id
+
+  ingress {
+    description = "allow TCP"
+    from_port   = 3306
+    to_port     = 3306
+    protocol    = "tcp"
+    security_groups = [aws_security_group.sg_wordpress.id]
+  }
+
+  ingress {
+    description = "allow SSH"
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["${aws_eip.bastion_elastic_ip.public_ip}/32"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+
+# We create our switch_1 instance in the private subnet
+resource "aws_instance" "switch_1" {
+  depends_on = [
+    aws_security_group.sg_switch,
+    aws_nat_gateway.nat_gateway,
+    aws_route_table_association.associate_routetable_to_private_subnet,
+  ]
+  ami = var.ec2_ami
+  instance_type = var.ec2_type
+  key_name = aws_key_pair.public_ssh_key.key_name
+  vpc_security_group_ids = [aws_security_group.sg_switch.id]
+  subnet_id = aws_subnet.private_subnet.id
+  user_data = file("configure_switch.sh")
+  tags = {
+      Name = "switch-1-instance"
+  }
+}
+
+# We create our switch_2 instance in the private subnet
+resource "aws_instance" "switch_2" {
+  depends_on = [
+    aws_security_group.sg_switch,
+    aws_nat_gateway.nat_gateway,
+    aws_route_table_association.associate_routetable_to_private_subnet,
+  ]
+  ami = var.ec2_ami
+  instance_type = var.ec2_type
+  key_name = aws_key_pair.public_ssh_key.key_name
+  vpc_security_group_ids = [aws_security_group.sg_switch.id]
+  subnet_id = aws_subnet.private_subnet.id
+  user_data = file("configure_switch.sh")
+  tags = {
+      Name = "switch-2-instance"
+  }
+}
+
+# We create our host_1 instance in the private subnet
+resource "aws_instance" "host_1" {
+  depends_on = [
+    aws_security_group.sg_switch,
+    aws_nat_gateway.nat_gateway,
+    aws_route_table_association.associate_routetable_to_private_subnet,
+  ]
+  ami = var.ec2_ami
+  instance_type = var.ec2_type
+  key_name = aws_key_pair.public_ssh_key.key_name
+  vpc_security_group_ids = [aws_security_group.sg_switch.id]
+  subnet_id = aws_subnet.private_subnet.id
+  user_data = file("configure_host.sh")
+  tags = {
+      Name = "host-1"
+  }
+}
+
+# We create our host_2 instance in the private subnet
+resource "aws_instance" "host_2" {
+  depends_on = [
+    aws_security_group.sg_switch,
+    aws_nat_gateway.nat_gateway,
+    aws_route_table_association.associate_routetable_to_private_subnet,
+  ]
+  ami = var.ec2_ami
+  instance_type = var.ec2_type
+  key_name = aws_key_pair.public_ssh_key.key_name
+  vpc_security_group_ids = [aws_security_group.sg_switch.id]
+  subnet_id = aws_subnet.private_subnet.id
+  user_data = file("configure_host.sh")
+  tags = {
+      Name = "host-2"
+  }
+}
+
+
+# We create a security group for our control plane instances
+resource "aws_security_group" "sg_control_plane" {
+  depends_on = [
+    aws_vpc.vpc,
+  ]
+  name        = "sg control plane"
+  description = "Allow switch inbound traffic"
+  vpc_id      = aws_vpc.vpc.id
+
+  ingress {
+    description = "allow TCP"
+    from_port   = 3306
+    to_port     = 3306
+    protocol    = "tcp"
+    security_groups = [aws_security_group.sg_wordpress.id]
+  }
+
+  ingress {
+    description = "allow SSH"
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["${aws_eip.bastion_elastic_ip.public_ip}/32"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+
+# We create our control_plane instance in the private subnet
+resource "aws_instance" "control_plane" {
+  depends_on = [
+    aws_security_group.sg_control_plane,
+    aws_nat_gateway.nat_gateway,
+    aws_route_table_association.associate_routetable_to_private_subnet,
+  ]
+  ami = var.ec2_ami
+  instance_type = var.ec2_type
+  key_name = aws_key_pair.public_ssh_key.key_name
+  vpc_security_group_ids = [aws_security_group.sg_control_plane.id]
+  subnet_id = aws_subnet.private_subnet.id
+  user_data = file("configure_control_plane.sh")
+  tags = {
+      Name = "sg_control-plane-instance"
+  }
+}
+
