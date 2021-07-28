@@ -239,13 +239,13 @@ resource "aws_eip_association" "bastion_eip_association" {
 
 
 # We save our wordpress and bastion host public ip in a file.
-resource "local_file" "ip_addresses" {
-  content = <<EOF
-            Bastion host public ip address: ${aws_eip.bastion_elastic_ip.public_ip}
-            Bastion host private ip address: ${aws_instance.bastion_host.private_ip}
-            EOF
-  filename = "${var.key_path}ip_addresses.txt"
-}
+#resource "local_file" "ip_addresses" {
+  #content = <<EOF
+            #Bastion host public ip address: ${aws_eip.bastion_elastic_ip.public_ip}
+            #Bastion host private ip address: ${aws_instance.bastion_host.private_ip}
+            #EOF
+  #filename = "${var.key_path}ip_addresses.txt"
+#}
 
 
 # We create a security group for our switch instances
@@ -258,19 +258,11 @@ resource "aws_security_group" "sg_switch" {
   vpc_id      = aws_vpc.vpc.id
 
   ingress {
-    description = "allow TCP"
-    from_port   = 3306
-    to_port     = 3306
-    protocol    = "tcp"
-    security_groups = [aws_security_group.sg_wordpress.id]
-  }
-
-  ingress {
     description = "allow SSH"
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["${aws_eip.bastion_elastic_ip.public_ip}/32"]
+    cidr_blocks = ["${aws_instance.bastion_host.private_ip}/32"]
   }
 
   egress {
@@ -294,7 +286,7 @@ resource "aws_instance" "switch_1" {
   key_name = aws_key_pair.public_ssh_key.key_name
   vpc_security_group_ids = [aws_security_group.sg_switch.id]
   subnet_id = aws_subnet.private_subnet.id
-  user_data = file("configure_switch.sh")
+  user_data = ""
   tags = {
       Name = "switch-1-instance"
   }
@@ -312,7 +304,7 @@ resource "aws_instance" "switch_2" {
   key_name = aws_key_pair.public_ssh_key.key_name
   vpc_security_group_ids = [aws_security_group.sg_switch.id]
   subnet_id = aws_subnet.private_subnet.id
-  user_data = file("configure_switch.sh")
+  user_data = ""
   tags = {
       Name = "switch-2-instance"
   }
@@ -330,7 +322,7 @@ resource "aws_instance" "host_1" {
   key_name = aws_key_pair.public_ssh_key.key_name
   vpc_security_group_ids = [aws_security_group.sg_switch.id]
   subnet_id = aws_subnet.private_subnet.id
-  user_data = file("configure_host.sh")
+  user_data = ""
   tags = {
       Name = "host-1"
   }
@@ -348,7 +340,7 @@ resource "aws_instance" "host_2" {
   key_name = aws_key_pair.public_ssh_key.key_name
   vpc_security_group_ids = [aws_security_group.sg_switch.id]
   subnet_id = aws_subnet.private_subnet.id
-  user_data = file("configure_host.sh")
+  user_data = ""
   tags = {
       Name = "host-2"
   }
@@ -363,21 +355,13 @@ resource "aws_security_group" "sg_control_plane" {
   name        = "sg control plane"
   description = "Allow switch inbound traffic"
   vpc_id      = aws_vpc.vpc.id
-
-  ingress {
-    description = "allow TCP"
-    from_port   = 3306
-    to_port     = 3306
-    protocol    = "tcp"
-    security_groups = [aws_security_group.sg_wordpress.id]
-  }
-
+   
   ingress {
     description = "allow SSH"
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["${aws_eip.bastion_elastic_ip.public_ip}/32"]
+    cidr_blocks = ["${aws_instance.bastion_host.private_ip}/32"]
   }
 
   egress {
@@ -401,7 +385,7 @@ resource "aws_instance" "control_plane" {
   key_name = aws_key_pair.public_ssh_key.key_name
   vpc_security_group_ids = [aws_security_group.sg_control_plane.id]
   subnet_id = aws_subnet.private_subnet.id
-  user_data = file("configure_control_plane.sh")
+  user_data = ""
   tags = {
       Name = "sg_control-plane-instance"
   }
