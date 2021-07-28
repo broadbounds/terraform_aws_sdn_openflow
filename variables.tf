@@ -73,6 +73,11 @@ variable "private_key_name" {
   default     = "ssh_private_key"
 }
 
+variable "inventory_file" {
+  type        = string
+  default     = "inventory.ini"
+}
+
 variable "key_path" {
   type        = string
   default     = "/var/lib/jenkins/.ssh/"
